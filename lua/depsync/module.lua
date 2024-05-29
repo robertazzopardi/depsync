@@ -1,6 +1,4 @@
-local json = require("dkjson")
-
-registry_domain = "https://registry.npmjs.org"
+REGESTRY_DOMAIN = "https://registry.npmjs.org"
 
 ---@class CustomModule
 local M = {}
@@ -23,7 +21,7 @@ M.my_first_function = function()
 
 	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 
-	local lua_table, _, err = json.decode(table.concat(lines), 1, nil)
+	local lua_table, _, err = vim.json.decode(table.concat(lines))
 
 	if err then
 		return "Error:" .. err
