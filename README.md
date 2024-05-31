@@ -4,8 +4,10 @@ A simple plugin to sync dependencies in a package.json file with the npmregistry
 
 ## Features
 
-- Sync dependencies in package.json with npm registry
 - Display differences inline in the editor
+
+![DepSync](./assets/buffer_view.png)
+
 - Update dependencies in package.json
 
 ## Requirements
