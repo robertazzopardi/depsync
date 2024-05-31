@@ -21,9 +21,7 @@ M.setup = function(args)
 end
 
 M.hello = function()
-	local result = module.my_first_function()
-	print(result)
-	return result
+	return module.my_first_function()
 end
 
 return M

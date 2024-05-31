@@ -1,27 +1,68 @@
----@class CustomModule
+local utils = require("depsync.util")
+local luv = require("luv")
+
+---@class MainModule
 local M = {}
 
-local function fetch_version(package)
-	local command = "npm view " .. package .. " version"
+-- Array of all package.json dependency fields
+local dep_fields = {
+	"dependencies",
+	"devDependencies",
+	"peerDependencies",
+	"optionalDependencies",
+}
 
-	-- Execute the command
-	local handle = io.popen(command)
-	if not handle then
-		error("Failed to execute command: " .. command)
+local function in_dep_fields(line)
+	for _, field in ipairs(dep_fields) do
+		if string.match(line, '"' .. field .. '":') then
+			return true
+		end
 	end
 
-	local result = handle:read("*a")
-	handle:close()
-
-	return result
+	return false
 end
 
----Function to sync packages
-local function check_deps(deps)
-	for name, old_version in pairs(deps) do
-		local latest_version = fetch_version(name)
+-- Modified handle_package function to return results
+local function handle_package(line_no, line)
+	local package_name, current_version = utils.parse_package_string(line)
+	local latest_version = utils.fetch_version(package_name)
+	return current_version, latest_version
+end
 
-		print(name, old_version, latest_version)
+-- Modified sync_packages function to run handle_package in parallel
+local function sync_packages(buf, lines)
+	local in_deps = false
+
+	local ns_id = vim.api.nvim_create_namespace("depsync")
+	vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
+
+	for i, line in ipairs(lines) do
+		if in_dep_fields(line) then
+			in_deps = true
+			goto continue
+		end
+
+		if in_deps and string.match(line, "}") then
+			in_deps = false
+			goto continue
+		end
+
+		if in_deps then
+			-- Create a coroutine for each handle_package call
+			local co = coroutine.create(function()
+				return handle_package(i, line)
+			end)
+
+			-- Resume the coroutine and process its result immediately
+			local success, current_version, latest_version = coroutine.resume(co)
+			if success then
+				if not string.match(latest_version, current_version) then
+					utils.add_virtual_text(buf, i - 1, "Outdated: " .. latest_version, ns_id)
+				end
+			end
+		end
+
+		::continue::
 	end
 end
 
@@ -36,14 +77,7 @@ M.my_first_function = function()
 
 	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 
-	local lua_table, _, err = vim.json.decode(table.concat(lines))
-
-	if err then
-		return "Error:" .. err
-	else
-		-- Print the parsed table
-		check_deps(lua_table.dependencies)
-	end
+	sync_packages(buf, lines)
 
 	return "Synced packages!"
 end
