@@ -57,7 +57,10 @@ local function sync_packages(buf, lines)
 			local success, current_version, latest_version = coroutine.resume(co)
 			if success then
 				if not string.match(latest_version, current_version) then
-					utils.add_virtual_text(buf, i - 1, "Outdated: " .. latest_version, ns_id)
+					local highlight = utils.get_highlight_from_semver_cmp(current_version,
+						latest_version)
+					utils.add_virtual_text(buf, i - 1, "Outdated: " .. latest_version, ns_id,
+						highlight)
 				end
 			end
 		end
@@ -66,8 +69,9 @@ local function sync_packages(buf, lines)
 	end
 end
 
+---
 ---@return string
-M.my_first_function = function()
+M.sync = function()
 	local buf = vim.api.nvim_get_current_buf()
 	local buf_name = vim.api.nvim_buf_get_name(buf)
 
