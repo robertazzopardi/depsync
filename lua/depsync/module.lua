@@ -1,5 +1,5 @@
 local utils = require("depsync.util")
-local luv = require("luv")
+local Job = require("plenary.job")
 
 ---@class MainModule
 local M = {}
@@ -12,6 +12,9 @@ local dep_fields = {
 	"optionalDependencies",
 }
 
+---Check if the line is a dependency field
+---@param line any
+---@return boolean
 local function in_dep_fields(line)
 	for _, field in ipairs(dep_fields) do
 		if string.match(line, '"' .. field .. '":') then
@@ -22,14 +25,33 @@ local function in_dep_fields(line)
 	return false
 end
 
--- Modified handle_package function to return results
-local function handle_package(line_no, line)
+---Modified handle_package function to return results
+---@param buf any
+---@param i any
+---@param ns_id any
+---@param line any
+local function handle_package(buf, i, ns_id, line)
 	local package_name, current_version = utils.parse_package_string(line)
-	local latest_version = utils.fetch_version(package_name)
-	return current_version, latest_version
+
+	Job:new({
+		command = 'npm',
+		args = { 'view', package_name, 'version' },
+		on_exit = vim.schedule_wrap(function(j, return_val)
+			local latest_version = j:result()[1]
+
+			if not string.match(latest_version, current_version) then
+				local highlight = utils.get_highlight_from_semver_cmp(current_version,
+					latest_version)
+				utils.add_virtual_text(buf, i - 1, "Outdated: " .. latest_version, ns_id,
+					highlight)
+			end
+		end),
+	}):start()
 end
 
--- Modified sync_packages function to run handle_package in parallel
+---Modified sync_packages function to run handle_package in parallel
+---@param buf any
+---@param lines any
 local function sync_packages(buf, lines)
 	local in_deps = false
 
@@ -48,28 +70,14 @@ local function sync_packages(buf, lines)
 		end
 
 		if in_deps then
-			-- Create a coroutine for each handle_package call
-			local co = coroutine.create(function()
-				return handle_package(i, line)
-			end)
-
-			-- Resume the coroutine and process its result immediately
-			local success, current_version, latest_version = coroutine.resume(co)
-			if success then
-				if not string.match(latest_version, current_version) then
-					local highlight = utils.get_highlight_from_semver_cmp(current_version,
-						latest_version)
-					utils.add_virtual_text(buf, i - 1, "Outdated: " .. latest_version, ns_id,
-						highlight)
-				end
-			end
+			handle_package(buf, i, ns_id, line)
 		end
 
 		::continue::
 	end
 end
 
----
+---Sync packages in package.json file
 ---@return string
 M.sync = function()
 	local buf = vim.api.nvim_get_current_buf()

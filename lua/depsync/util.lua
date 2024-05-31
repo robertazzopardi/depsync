@@ -18,24 +18,6 @@ M.parse_package_string = function(package_string)
 	return package_name, semver_version
 end
 
----Function to fetch the latest version of a package
----@param package_name any
----@return any
-M.fetch_version = function(package_name)
-	local command = "npm view " .. package_name .. " version"
-
-	-- Execute the command
-	local handle = io.popen(command)
-	if not handle then
-		error("Failed to execute command: " .. command)
-	end
-
-	local version = handle:read("*l")
-	handle:close()
-
-	return version
-end
-
 vim.cmd('highlight MajorTextHighlight guifg=#D2222D')
 vim.cmd('highlight MinorTextHighlight guifg=#FFBF00')
 vim.cmd('highlight MyVirtualTextHighlight guifg=#238823')
