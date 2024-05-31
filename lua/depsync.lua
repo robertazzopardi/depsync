@@ -21,7 +21,9 @@ M.setup = function(args)
 end
 
 M.main = function()
-	return module.sync()
+	local res = module.sync()
+	print(res)
+	return res
 end
 
 return M
