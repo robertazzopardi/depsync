@@ -1,26 +1,8 @@
-REGESTRY_DOMAIN = "https://registry.npmjs.org"
-
 ---@class CustomModule
 local M = {}
 
-local function fetch(url)
-	-- Determine the operating system
-	local os_name
-	if package.config:sub(1, 1) == '\\' then
-		os_name = "windows"
-	else
-		os_name = io.popen("uname"):read("*l")
-	end
-
-	-- Command to perform the GET request
-	local command
-	if os_name == "windows" then
-		command = 'powershell -Command "(Invoke-WebRequest -Uri \'' .. url .. '\' -UseBasicParsing).Content"'
-	elseif os_name == "Linux" or os_name == "Darwin" then
-		command = 'curl -s ' .. url
-	else
-		error("Unsupported operating system: " .. tostring(os_name))
-	end
+local function fetch_version(package)
+	local command = "npm view " .. package .. " version"
 
 	-- Execute the command
 	local handle = io.popen(command)
@@ -36,12 +18,10 @@ end
 
 ---Function to sync packages
 local function check_deps(deps)
-	for k, v in pairs(deps) do
-		local url = REGESTRY_DOMAIN .. "/" .. k .. "/latest"
-		local res = fetch(url)
-		local parsed = vim.json.decode(res)
+	for name, old_version in pairs(deps) do
+		local latest_version = fetch_version(name)
 
-		print(parsed.version)
+		print(name, old_version, latest_version)
 	end
 end
 
