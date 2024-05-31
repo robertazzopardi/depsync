@@ -16,7 +16,7 @@ A simple plugin to sync dependencies in a package.json file with the npmregistry
 
 This plugin has been tested with [lazy.nvim](https://github.com/folke/lazy.nvim) and only depends on [plenary.nvim](https://github.com/nvim-lua/plenary.nvim)
 
-```bash
+```lua
 {
     'robertazzopardi/depsync',
     dependencies = {
