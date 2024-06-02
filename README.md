@@ -1,6 +1,6 @@
 # DepSync
 
-A simple plugin to sync dependencies in a package.json file with the npmregistry and display the differences inline in the editor.
+A simple plugin to sync dependencies in a package.json file with the npm and display the differences inline in the editor.
 
 ## Features
 
@@ -32,7 +32,7 @@ This plugin has been tested with [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ## Usage
 
-- `:DepSync` - Sync dependencies in package.json with npm registry
+- `:DepSync` - Sync dependencies in package.json with npm
 - `:DepSyncUpdate` - Update dependencies in package.json
 
 ## Contribution
