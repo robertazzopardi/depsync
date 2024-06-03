@@ -115,15 +115,32 @@ local function handle_package(buf, i, ns_id, line)
 	}):start()
 end
 
+local function handle_package_update(buf, i, line)
+	local package_name, current_version = parse_package_string(line)
+
+	Job:new({
+		command = 'npm',
+		args = { 'view', package_name, 'version' },
+		on_exit = vim.schedule_wrap(function(j, return_val)
+			local latest_version = j:result()[1]
+
+			if not string.match(latest_version, current_version) then
+				local new_line = string.gsub(line, current_version, latest_version)
+
+				vim.api.nvim_buf_set_lines(buf, i - 1, i, false, { new_line })
+			end
+		end),
+	}):start()
+end
+
 ---Modified sync_packages function to run handle_package in parallel
 ---@param buf any
 ---@param lines any
 M.sync_packages = function(buf, lines)
-	local in_deps = false
-
 	local ns_id = vim.api.nvim_create_namespace("depsync")
 	vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
 
+	local in_deps = false
 	for i, line in ipairs(lines) do
 		if in_dep_fields(line) then
 			in_deps = true
@@ -137,6 +154,30 @@ M.sync_packages = function(buf, lines)
 
 		if in_deps then
 			handle_package(buf, i, ns_id, line)
+		end
+
+		::continue::
+	end
+end
+
+M.update_packages = function(buf, lines)
+	local ns_id = vim.api.nvim_create_namespace("depsync")
+	vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
+
+	local in_deps = false
+	for i, line in ipairs(lines) do
+		if in_dep_fields(line) then
+			in_deps = true
+			goto continue
+		end
+
+		if in_deps and string.match(line, "}") then
+			in_deps = false
+			goto continue
+		end
+
+		if in_deps then
+			handle_package_update(buf, i, line)
 		end
 
 		::continue::
