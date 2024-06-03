@@ -20,8 +20,14 @@ M.setup = function(args)
 	M.config = vim.tbl_deep_extend("force", M.config, args or {})
 end
 
-M.main = function()
+M.sync = function()
 	local res = module.sync()
+	print(res)
+	return res
+end
+
+M.update = function()
+	local res = module.update()
 	print(res)
 	return res
 end
