@@ -21,7 +21,7 @@ M.sync = function()
 end
 
 ---comment
-M.update = function()
+M.update = function(args_str)
 	local buf = vim.api.nvim_get_current_buf()
 	local buf_name = vim.api.nvim_buf_get_name(buf)
 
@@ -31,7 +31,7 @@ M.update = function()
 
 	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 
-	utils.update_packages(buf, lines)
+	utils.update_packages(buf, lines, args_str)
 
 	return "Updating packages!"
 end

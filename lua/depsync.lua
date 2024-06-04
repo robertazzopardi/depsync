@@ -26,8 +26,8 @@ M.sync = function()
 	return res
 end
 
-M.update = function()
-	local res = module.update()
+M.update = function(opts)
+	local res = module.update(opts.args)
 	print(res)
 	return res
 end

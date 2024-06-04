@@ -160,9 +160,45 @@ M.sync_packages = function(buf, lines)
 	end
 end
 
-M.update_packages = function(buf, lines)
+---parse args
+---@param args_str string
+---@return table
+local function parse_args(args_str)
+	local args = {}
+	for arg in args_str:gmatch("%S+") do
+		table.insert(args, arg)
+	end
+	return args
+end
+
+---check if args are valid or not
+---@param args table
+---@param line string
+---@return boolean
+local function is_valid_args(args, line)
+	if #args == 0 then
+		return true
+	end
+
+	for i, arg in ipairs(args) do
+		-- print(i, arg)
+		if string.match(line, arg) then
+			return true
+		end
+	end
+
+	return false
+end
+
+---handle updating packages
+---@param buf any
+---@param lines table
+---@param args_str string
+M.update_packages = function(buf, lines, args_str)
 	local ns_id = vim.api.nvim_create_namespace("depsync")
 	vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
+
+	local args = parse_args(args_str)
 
 	local in_deps = false
 	for i, line in ipairs(lines) do
@@ -176,7 +212,7 @@ M.update_packages = function(buf, lines)
 			goto continue
 		end
 
-		if in_deps then
+		if in_deps and is_valid_args(args, line) then
 			handle_package_update(buf, i, line)
 		end
 
