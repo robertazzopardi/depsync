@@ -1,5 +1,3 @@
-local Job = require("plenary.job")
-
 ---@class Utils
 local M = {}
 
@@ -99,38 +97,39 @@ end
 local function handle_package(buf, i, ns_id, line)
 	local package_name, current_version = parse_package_string(line)
 
-	Job:new({
-		command = 'npm',
-		args = { 'view', package_name, 'version' },
-		on_exit = vim.schedule_wrap(function(j, return_val)
-			local latest_version = j:result()[1]
-
+	local add_version = function(_, data)
+		if data then
+			local latest_version = data[1]
 			if not string.match(latest_version, current_version) then
-				local highlight = get_highlight_from_semver_cmp(current_version,
-					latest_version)
-				add_virtual_text(buf, i - 1, "Outdated: " .. latest_version, ns_id,
-					highlight)
+				local highlight = get_highlight_from_semver_cmp(current_version, latest_version)
+				add_virtual_text(buf, i - 1, "Outdated: " .. latest_version, ns_id, highlight)
 			end
-		end),
-	}):start()
+		end
+	end
+
+	vim.fn.jobstart('npm view ' .. package_name .. ' version', {
+		stdout_buffered = true,
+		on_stdout = add_version,
+	})
 end
 
 local function handle_package_update(buf, i, line)
 	local package_name, current_version = parse_package_string(line)
 
-	Job:new({
-		command = 'npm',
-		args = { 'view', package_name, 'version' },
-		on_exit = vim.schedule_wrap(function(j, return_val)
-			local latest_version = j:result()[1]
-
+	local handle_version = function(_, data)
+		if data then
+			local latest_version = data[1]
 			if not string.match(latest_version, current_version) then
 				local new_line = string.gsub(line, current_version, latest_version)
-
 				vim.api.nvim_buf_set_lines(buf, i - 1, i, false, { new_line })
 			end
-		end),
-	}):start()
+		end
+	end
+
+	vim.fn.jobstart("npm view " .. package_name .. " version", {
+		stdout_buffered = true,
+		on_stdout = handle_version,
+	})
 end
 
 ---Modified sync_packages function to run handle_package in parallel
