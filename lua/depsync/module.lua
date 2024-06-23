@@ -9,8 +9,8 @@ M.sync = function()
 	local buf = vim.api.nvim_get_current_buf()
 	local buf_name = vim.api.nvim_buf_get_name(buf)
 
-	if not string.find(buf_name, "package.json") then
-		return "Not a package.json file"
+	if not utils.is_package_file(buf_name) then
+		return buf_name .. " Not supported"
 	end
 
 	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -25,8 +25,8 @@ M.update = function(args_str)
 	local buf = vim.api.nvim_get_current_buf()
 	local buf_name = vim.api.nvim_buf_get_name(buf)
 
-	if not string.find(buf_name, "package.json") then
-		return "Not a package.json file"
+	if not utils.is_package_file(buf_name) then
+		return buf_name .. " Not supported"
 	end
 
 	local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)

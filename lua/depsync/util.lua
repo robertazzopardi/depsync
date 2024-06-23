@@ -1,6 +1,23 @@
 ---@class Utils
 local M = {}
 
+local supported_package_files = {
+	"package.json",
+	"cargo.toml",
+}
+
+---Function to check if the buffer is a package file
+---@param buffer_name any
+---@return boolean
+M.is_package_file = function(buffer_name)
+	for _, file in ipairs(supported_package_files) do
+		if string.find(string.lower(buffer_name), file) then
+			return true
+		end
+	end
+	return false
+end
+
 ---Function to parse a package string
 ---@param package_string any
 ---@return unknown
@@ -49,7 +66,7 @@ local function split_semver(semver)
 	return major, minor, patch
 end
 
----comment
+---Function to get the highlight group based on semver comparison
 ---@param version_a any
 ---@param version_b any
 ---@return string
@@ -70,10 +87,13 @@ end
 
 -- Array of all package.json dependency fields
 local dep_fields = {
-	"dependencies",
-	"devDependencies",
-	"peerDependencies",
-	"optionalDependencies",
+	'"dependencies":',
+	'"devDependencies":',
+	'"peerDependencies":',
+	'"optionalDependencies":',
+	"[dependencies]",
+	-- "[build-dependencies]",
+	-- "[dev-dependencies]"
 }
 
 ---Check if the line is a dependency field
@@ -81,7 +101,8 @@ local dep_fields = {
 ---@return boolean
 local function in_dep_fields(line)
 	for _, field in ipairs(dep_fields) do
-		if string.match(line, '"' .. field .. '":') then
+		-- print(field, line,)
+		if line:find(field, 1, true) ~= nil then
 			return true
 		end
 	end
@@ -146,13 +167,14 @@ M.sync_packages = function(buf, lines)
 			goto continue
 		end
 
-		if in_deps and string.match(line, "}") then
+		if in_deps and (string.match(line, "}") or line.sub(1, #'[') == "[") then
 			in_deps = false
 			goto continue
 		end
 
 		if in_deps then
-			handle_package(buf, i, ns_id, line)
+			-- handle_package(buf, i, ns_id, line)
+			print(line)
 		end
 
 		::continue::
