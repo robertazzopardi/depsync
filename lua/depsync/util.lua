@@ -19,9 +19,9 @@ M.is_package_file = function(buffer_name)
 end
 
 ---Function to parse a package string
----@param package_string any
----@return unknown
----@return unknown
+---@param package_string string
+---@return string
+---@return string
 local function parse_package_string(package_string)
 	-- Pattern to match the package name and semver version
 	local pattern = '"([^"]+)":%s*"([^"]+)"'
@@ -92,16 +92,15 @@ local dep_fields = {
 	'"peerDependencies":',
 	'"optionalDependencies":',
 	"[dependencies]",
-	-- "[build-dependencies]",
-	-- "[dev-dependencies]"
+	"[build-dependencies]",
+	"[dev-dependencies]"
 }
 
 ---Check if the line is a dependency field
----@param line any
+---@param line string
 ---@return boolean
 local function in_dep_fields(line)
 	for _, field in ipairs(dep_fields) do
-		-- print(field, line,)
 		if line:find(field, 1, true) ~= nil then
 			return true
 		end
@@ -134,6 +133,10 @@ local function handle_package(buf, i, ns_id, line)
 	})
 end
 
+---Handle updating packages
+---@param buf any
+---@param i integer
+---@param line string
 local function handle_package_update(buf, i, line)
 	local package_name, current_version = parse_package_string(line)
 
@@ -153,9 +156,24 @@ local function handle_package_update(buf, i, line)
 	})
 end
 
+local comment_chars = { "#", "//" };
+
+---Check if the line starts with a commend
+---@param line string
+---@return boolean
+local function is_comment(line)
+	for _, char in ipairs(comment_chars) do
+		if string.match(line, "^%s*" .. char) then
+			return true
+		end
+	end
+	return false
+end
+
+
 ---Modified sync_packages function to run handle_package in parallel
 ---@param buf any
----@param lines any
+---@param lines string[]
 M.sync_packages = function(buf, lines)
 	local ns_id = vim.api.nvim_create_namespace("depsync")
 	vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
@@ -167,14 +185,13 @@ M.sync_packages = function(buf, lines)
 			goto continue
 		end
 
-		if in_deps and (string.match(line, "}") or line.sub(1, #'[') == "[") then
+		if in_deps and (string.match(line, "}") or string.sub(line, 1, 1) == "[") then
 			in_deps = false
 			goto continue
 		end
 
-		if in_deps then
-			-- handle_package(buf, i, ns_id, line)
-			print(line)
+		if in_deps and not is_comment(line) then
+			handle_package(buf, i, ns_id, line)
 		end
 
 		::continue::
@@ -183,7 +200,7 @@ end
 
 ---parse args
 ---@param args_str string
----@return table
+---@return string[]
 local function parse_args(args_str)
 	local args = {}
 	for arg in args_str:gmatch("%S+") do
@@ -193,7 +210,7 @@ local function parse_args(args_str)
 end
 
 ---check if args are valid or not
----@param args table
+---@param args string[]
 ---@param line string
 ---@return boolean
 local function is_valid_args(args, line)
@@ -201,8 +218,7 @@ local function is_valid_args(args, line)
 		return true
 	end
 
-	for i, arg in ipairs(args) do
-		-- print(i, arg)
+	for _, arg in ipairs(args) do
 		if string.match(line, arg) then
 			return true
 		end
@@ -213,7 +229,7 @@ end
 
 ---handle updating packages
 ---@param buf any
----@param lines table
+---@param lines string[]
 ---@param args_str string
 M.update_packages = function(buf, lines, args_str)
 	local ns_id = vim.api.nvim_create_namespace("depsync")
