@@ -1,18 +1,22 @@
 # DepSync
 
-A simple plugin to sync dependencies in a package.json file with the npm and display the differences inline in the editor.
+A simple plugin to sync dependencies in a dependency files and display the differences inline in the open buffer.
 
 ## Features
 
 - Display differences inline in the editor
+- Update dependencies in dependency file
 
-![DepSync](./assets/buffer_view.png)
+## Preview
 
-- Update dependencies in package.json
+![DepSyncNpm](./assets/buffer_view.png)
+
+![DepSync](./assets/cargo-toml-sync.pn1)
 
 ## Requirements
 
-- [Npm](https://www.npmjs.com/) - Node Package Manager
+- [Npm](https://www.npmjs.com/) - For package.json support
+- [Cargo](https://github.com/rust-lang/cargo) - For Cargo.toml support
 
 ## Installation
 
@@ -29,10 +33,11 @@ This plugin has been tested with [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ## Usage
 
-- `:DepSync` - Sync dependencies in package.json with npm
-- `:DepSyncUpdate` - Update dependencies in package.json
+- `:DepSync` - Sync dependencies and show diffs in buffer
+- `:DepSyncUpdate` - Update all dependencies
+- `:DepSyncUpdate {dependency}` - Update a specific dependency
 
 ## Contribution
 
-All contribution is welcome!
+All contribution is welcome! I'll be adding support for different package managers as I need them but feel free to open an issue or PR if you need support for a specific package manager.
 
