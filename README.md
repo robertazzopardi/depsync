@@ -9,7 +9,7 @@ A simple plugin to sync dependencies in a dependency files and display the diffe
 
 ## Preview
 
-![DepSyncNpm](./assets/buffer_view.png)
+![DepSyncNpm](./assets/package-json-sync.png)
 
 ![DepSync](./assets/cargo-toml-sync.png)
 
