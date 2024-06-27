@@ -1,9 +1,12 @@
 ---@class Utils
 local M = {}
 
+local npm = "package.json"
+local cargo = "cargo.toml"
+
 local supported_package_files = {
-	"package.json",
-	"cargo.toml",
+	npm,
+	cargo,
 }
 
 ---Function to check if the buffer is a package file
@@ -20,11 +23,18 @@ end
 
 ---Function to parse a package string
 ---@param package_string string
+---@param buf_name string
 ---@return string
 ---@return string
-local function parse_package_string(package_string)
+local function parse_package_string(package_string, buf_name)
 	-- Pattern to match the package name and semver version
-	local pattern = '"([^"]+)":%s*"([^"]+)"'
+	local pattern
+	if buf_name:sub(- #npm) == npm then
+		pattern = '"([^"]+)":%s*"([^"]+)"'
+	elseif buf_name:sub(- #cargo) == cargo then
+		pattern = '([%w_]+)%s*=%s*"(.-)"'
+	end
+
 	local package_name, semver_version = package_string:match(pattern)
 
 	-- Remove the ^ character from the semver version if it exists
@@ -109,51 +119,88 @@ local function in_dep_fields(line)
 	return false
 end
 
+---Get the dependency search command
+---@param buf_name string
+---@param package_name string
+---@return string?
+local function get_dep_search_cmd(buf_name, package_name)
+	if buf_name:sub(- #npm) == npm then
+		return "npm view " .. package_name .. " version"
+	elseif buf_name:sub(- #cargo) == cargo then
+		return "cargo search --limit 1 " .. package_name
+	end
+	return nil
+end
+
 ---Modified handle_package function to return results
 ---@param buf any
----@param i any
+---@param buf_name string
+---@param i integer
 ---@param ns_id any
----@param line any
-local function handle_package(buf, i, ns_id, line)
-	local package_name, current_version = parse_package_string(line)
+---@param line string
+local function handle_package(buf, buf_name, i, ns_id, line)
+	local package_name, current_version = parse_package_string(line, buf_name)
 
 	local add_version = function(_, data)
 		if data then
-			local latest_version = data[1]
-			if not string.match(latest_version, current_version) then
-				local highlight = get_highlight_from_semver_cmp(current_version, latest_version)
-				add_virtual_text(buf, i - 1, "Outdated: " .. latest_version, ns_id, highlight)
+			local version_data = data[1]
+			local short_semver_pattern = '%d+%.%d+%.%d+'
+			local long_semver_pattern = '%d+%.%d+%.%d+[-%w%.]*%+?[%w%.]*'
+			local short_latest_version = version_data:match(short_semver_pattern)
+			local long_latest_version = version_data:match(long_semver_pattern)
+
+			if long_latest_version ~= current_version then
+				local highlight = get_highlight_from_semver_cmp(current_version, short_latest_version)
+				add_virtual_text(buf, i - 1, "Outdated: " .. long_latest_version, ns_id, highlight)
 			end
 		end
 	end
 
-	vim.fn.jobstart('npm view ' .. package_name .. ' version', {
-		stdout_buffered = true,
-		on_stdout = add_version,
-	})
+	if package_name == nil or current_version == nil then
+		return
+	end
+
+	local cmd = get_dep_search_cmd(buf_name, package_name)
+	if cmd ~= nil then
+		vim.fn.jobstart(cmd, {
+			stdout_buffered = true,
+			on_stdout = add_version,
+		})
+	end
 end
 
 ---Handle updating packages
 ---@param buf any
+---@param buf_name string
 ---@param i integer
 ---@param line string
-local function handle_package_update(buf, i, line)
-	local package_name, current_version = parse_package_string(line)
+local function handle_package_update(buf, buf_name, i, line)
+	local package_name, current_version = parse_package_string(line, buf_name)
 
 	local handle_version = function(_, data)
 		if data then
-			local latest_version = data[1]
-			if not string.match(latest_version, current_version) then
-				local new_line = string.gsub(line, current_version, latest_version)
+			local version_data = data[1]
+			local long_semver_pattern = '%d+%.%d+%.%d+[-%w%.]*%+?[%w%.]*'
+			local long_latest_version = version_data:match(long_semver_pattern)
+
+			if long_latest_version ~= current_version then
+				local new_line = string.gsub(line, current_version, long_latest_version)
 				vim.api.nvim_buf_set_lines(buf, i - 1, i, false, { new_line })
 			end
 		end
 	end
 
-	vim.fn.jobstart("npm view " .. package_name .. " version", {
-		stdout_buffered = true,
-		on_stdout = handle_version,
-	})
+	if package_name == nil or current_version == nil then
+		return
+	end
+
+	local cmd = get_dep_search_cmd(buf_name, package_name)
+	if cmd ~= nil then
+		vim.fn.jobstart(cmd, {
+			stdout_buffered = true,
+			on_stdout = handle_version,
+		})
+	end
 end
 
 local comment_chars = { "#", "//" };
@@ -170,11 +217,11 @@ local function is_comment(line)
 	return false
 end
 
-
 ---Modified sync_packages function to run handle_package in parallel
 ---@param buf any
+---@param buf_name string
 ---@param lines string[]
-M.sync_packages = function(buf, lines)
+M.sync_packages = function(buf, buf_name, lines)
 	local ns_id = vim.api.nvim_create_namespace("depsync")
 	vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
 
@@ -191,7 +238,7 @@ M.sync_packages = function(buf, lines)
 		end
 
 		if in_deps and not is_comment(line) then
-			handle_package(buf, i, ns_id, line)
+			handle_package(buf, buf_name, i, ns_id, line)
 		end
 
 		::continue::
@@ -229,9 +276,10 @@ end
 
 ---handle updating packages
 ---@param buf any
+---@param buf_name string
 ---@param lines string[]
 ---@param args_str string
-M.update_packages = function(buf, lines, args_str)
+M.update_packages = function(buf, buf_name, lines, args_str)
 	local ns_id = vim.api.nvim_create_namespace("depsync")
 	vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
 
@@ -244,13 +292,13 @@ M.update_packages = function(buf, lines, args_str)
 			goto continue
 		end
 
-		if in_deps and string.match(line, "}") then
+		if in_deps and (string.match(line, "}") or string.sub(line, 1, 1) == "[") then
 			in_deps = false
 			goto continue
 		end
 
 		if in_deps and is_valid_args(args, line) then
-			handle_package_update(buf, i, line)
+			handle_package_update(buf, buf_name, i, line)
 		end
 
 		::continue::
