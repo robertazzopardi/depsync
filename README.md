@@ -11,7 +11,7 @@ A simple plugin to sync dependencies in a dependency files and display the diffe
 
 ![DepSyncNpm](./assets/buffer_view.png)
 
-![DepSync](./assets/cargo-toml-sync.pn1)
+![DepSync](./assets/cargo-toml-sync.png)
 
 ## Requirements
 
