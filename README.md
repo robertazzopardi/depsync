@@ -24,7 +24,7 @@ This plugin has been tested with [lazy.nvim](https://github.com/folke/lazy.nvim)
 
 ```lua
 {
-    'robertazzopardi/depsync',
+    'robertazzopardi/depsync.nvim',
     config = function()
       require('depsync').setup()
     end
