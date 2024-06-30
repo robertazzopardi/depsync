@@ -1,12 +1,17 @@
+local curl = require('plenary.curl')
+local async = require('plenary.async')
+
 ---@class Utils
 local M = {}
 
 local npm = "package.json"
 local cargo = "cargo.toml"
+local requirements = "requirements.txt"
 
 local supported_package_files = {
 	npm,
 	cargo,
+	requirements,
 }
 
 ---Function to check if the buffer is a package file
@@ -33,6 +38,8 @@ local function parse_package_string(package_string, buf_name)
 		pattern = '"([^"]+)":%s*"([^"]+)"'
 	elseif buf_name:sub(- #cargo) == cargo then
 		pattern = '([%w_]+)%s*=%s*"(.-)"'
+	elseif buf_name:sub(- #requirements) == requirements then
+		pattern = '([^=]+)==(.+)'
 	end
 
 	local package_name, semver_version = package_string:match(pattern)
@@ -51,12 +58,12 @@ vim.cmd('highlight MyVirtualTextHighlight guifg=#238823')
 
 ---Function to add virtual text to a buffer
 ---@param bufnr any
----@param line any
----@param text any
+---@param lineno integer
+---@param text string
 ---@param ns_id any
----@param highlight any
-local function add_virtual_text(bufnr, line, text, ns_id, highlight)
-	vim.api.nvim_buf_set_extmark(bufnr, ns_id, line, -1, {
+---@param highlight string
+local function add_virtual_text(bufnr, lineno, text, ns_id, highlight)
+	vim.api.nvim_buf_set_extmark(bufnr, ns_id, lineno, -1, {
 		virt_text = { { text, highlight } },
 		virt_text_pos = "eol", -- End of line
 	})
@@ -128,9 +135,26 @@ local function get_dep_search_cmd(buf_name, package_name)
 		return "npm view " .. package_name .. " version"
 	elseif buf_name:sub(- #cargo) == cargo then
 		return "cargo search --limit 1 " .. package_name
+	elseif buf_name:sub(- #requirements) == requirements then
+		return "https://pypi.org/pypi/" .. package_name .. "/json"
 	end
 	return nil
 end
+
+local function get_package_version(package_name)
+	local url = "https://pypi.org/pypi/" .. package_name .. "/json"
+	local response = curl.get(url, {})
+
+	if response.status ~= 200 then
+		error("Failed to fetch package information: HTTP " .. response.status)
+	end
+
+	local data = vim.json.decode(response.body)
+	return data.info.version
+end
+
+local short_semver_pattern = '%d+%.%d+%.%d+'
+local long_semver_pattern = '%d+%.%d+%.%d+[-%w%.]*%+?[%w%.]*'
 
 ---Modified handle_package function to return results
 ---@param buf any
@@ -139,13 +163,12 @@ end
 ---@param ns_id any
 ---@param line string
 local function handle_package(buf, buf_name, i, ns_id, line)
-	local package_name, current_version = parse_package_string(line, buf_name)
+	local package_name, current_version =
+	    parse_package_string(line, buf_name)
 
 	local add_version = function(_, data)
 		if data then
 			local version_data = data[1]
-			local short_semver_pattern = '%d+%.%d+%.%d+'
-			local long_semver_pattern = '%d+%.%d+%.%d+[-%w%.]*%+?[%w%.]*'
 			local short_latest_version = version_data:match(short_semver_pattern)
 			local long_latest_version = version_data:match(long_semver_pattern)
 
@@ -162,10 +185,18 @@ local function handle_package(buf, buf_name, i, ns_id, line)
 
 	local cmd = get_dep_search_cmd(buf_name, package_name)
 	if cmd ~= nil then
-		vim.fn.jobstart(cmd, {
-			stdout_buffered = true,
-			on_stdout = add_version,
-		})
+		if buf_name:sub(- #requirements) == requirements then
+			local version = get_package_version(package_name)
+			-- TODO async this
+			add_version(nil, { version })
+		else
+			vim.fn.jobstart(cmd, {
+				stdout_buffered = true,
+				on_stdout = add_version,
+			})
+
+			-- vim.system({ 'echo', 'hello' }, { text = true }, on_exit)
+		end
 	end
 end
 
@@ -175,12 +206,12 @@ end
 ---@param i integer
 ---@param line string
 local function handle_package_update(buf, buf_name, i, line)
-	local package_name, current_version = parse_package_string(line, buf_name)
+	local package_name, current_version =
+	    parse_package_string(line, buf_name)
 
 	local handle_version = function(_, data)
 		if data then
 			local version_data = data[1]
-			local long_semver_pattern = '%d+%.%d+%.%d+[-%w%.]*%+?[%w%.]*'
 			local long_latest_version = version_data:match(long_semver_pattern)
 
 			if long_latest_version ~= current_version then
@@ -227,12 +258,17 @@ M.sync_packages = function(buf, buf_name, lines)
 
 	local in_deps = false
 	for i, line in ipairs(lines) do
+		if buf_name:sub(- #requirements) == requirements and not in_deps then
+			in_deps = true
+		end
+
 		if in_dep_fields(line) then
 			in_deps = true
 			goto continue
 		end
 
-		if in_deps and (string.match(line, "}") or string.sub(line, 1, 1) == "[") then
+		if in_deps and (string.match(line, "}")
+			    or string.sub(line, 1, 1) == "[") then
 			in_deps = false
 			goto continue
 		end
@@ -292,7 +328,8 @@ M.update_packages = function(buf, buf_name, lines, args_str)
 			goto continue
 		end
 
-		if in_deps and (string.match(line, "}") or string.sub(line, 1, 1) == "[") then
+		if in_deps and (string.match(line, "}")
+			    or string.sub(line, 1, 1) == "[") then
 			in_deps = false
 			goto continue
 		end
